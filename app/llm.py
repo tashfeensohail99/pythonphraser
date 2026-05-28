@@ -38,7 +38,7 @@ def _strict_schema() -> dict:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["detectedDocType", "confidence", "fields"],
+        "required": ["detectedDocType", "confidence", "fields", "completeness"],
         "properties": {
             "detectedDocType": {"type": "string", "enum": list(DOC_TYPES.keys())},
             "confidence": {"type": "number"},
@@ -47,6 +47,17 @@ def _strict_schema() -> dict:
                 "additionalProperties": False,
                 "required": FIELD_KEYS,
                 "properties": {k: {"type": ["string", "null"]} for k in FIELD_KEYS},
+            },
+            "completeness": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["appearsComplete", "hasFrontAndBack", "mrzPresent", "note"],
+                "properties": {
+                    "appearsComplete": {"type": "boolean"},
+                    "hasFrontAndBack": {"type": "boolean"},
+                    "mrzPresent": {"type": "boolean"},
+                    "note": {"type": ["string", "null"]},
+                },
             },
         },
     }
@@ -62,7 +73,18 @@ def classify_and_extract(text: str, expected: ExpectedDoc) -> Tuple[dict, float]
         "of the allowed types and extract the requested fields. Use ISO-8601 "
         "(YYYY-MM-DD) for every date. Return null for any field you cannot find. "
         "Be conservative: only give high confidence when the document is "
-        "unambiguous."
+        "unambiguous.\n"
+        "Always extract fullName, dateOfBirth, passportNumber and idNumber when "
+        "shown — they confirm the document belongs to the right person.\n"
+        "Also assess completeness:\n"
+        "- appearsComplete: is the document whole and untruncated? A bank "
+        "statement must show ALL pages and the full period, not just page 1.\n"
+        "- hasFrontAndBack: for national ID / CNIC cards, are BOTH the front and "
+        "back present?\n"
+        "- mrzPresent: for passports, is the 2-line machine-readable zone at the "
+        "bottom of the bio page visible (a strong sign the page is complete and "
+        "not cropped)?\n"
+        "Set booleans to false when not applicable or not determinable."
     )
     hint = ""
     if expected.docType and expected.docType in DOC_TYPES:

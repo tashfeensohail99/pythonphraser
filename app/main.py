@@ -18,7 +18,7 @@ from .config import get_settings
 from .schemas import ValidateRequest, ValidateResponse
 from .security import verify_hmac
 
-MODEL_VERSION = "imm-parser-1.0.0"
+MODEL_VERSION = "imm-parser-1.1.0"
 
 app = FastAPI(title="Tashfeen Immigration Document Parser", version=MODEL_VERSION)
 
@@ -114,6 +114,7 @@ async def validate_document(req: ValidateRequest):
     detected = None
     confidence = 0.0
     fields: dict = {}
+    completeness: dict | None = None
 
     if text:
         parsed, llm_cost = llm.classify_and_extract(text, req.expected)
@@ -125,12 +126,17 @@ async def validate_document(req: ValidateRequest):
             except Exception:
                 confidence = 0.0
             fields = {k: v for k, v in (parsed.get("fields") or {}).items() if v}
+            completeness = parsed.get("completeness")
         else:
             error = "OpenAI not configured or returned no data — manual review needed"
     else:
         error = "No text could be extracted from the document"
 
+    pages = ocr.page_count(data, req.file.mimeType)
+    if pages:
+        fields = {**fields, "pageCount": pages}
     checks = validators.build_text_checks(detected, confidence, req.expected, fields)
+    checks += validators.build_completeness_checks(detected, req.expected, completeness, pages)
     if error and not checks:
         suggested, reasons = "NEEDS_REVIEW", []
     else:

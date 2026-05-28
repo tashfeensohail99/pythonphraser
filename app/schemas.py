@@ -19,6 +19,10 @@ class ExpectedDoc(BaseModel):
     validityBufferDays: int = 30
     photoSpec: Optional[Dict[str, Any]] = None
     clientName: Optional[str] = None
+    # Ownership reference values from the CRM client record (any may be null).
+    clientDob: Optional[str] = None
+    clientPassportNumber: Optional[str] = None
+    clientNationalId: Optional[str] = None
     service: Optional[str] = None
     targetCountry: Optional[str] = None
 

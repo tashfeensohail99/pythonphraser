@@ -87,6 +87,25 @@ def vision_ocr_images(images: List[bytes]) -> Optional[str]:
         return None
 
 
+def page_count(data: bytes, mime: str) -> int:
+    """Page count — free from the PDF structure (no OCR), or 1 for an image.
+
+    Used for completeness checks (a 1-page 'bank statement' is suspicious)
+    without paying to OCR every page.
+    """
+    is_pdf = "pdf" in (mime or "").lower() or data[:5] == b"%PDF-"
+    if is_pdf:
+        try:
+            doc = fitz.open(stream=data, filetype="pdf")
+            try:
+                return doc.page_count
+            finally:
+                doc.close()
+        except Exception:
+            return 0
+    return 1
+
+
 def extract_text(data: bytes, mime: str) -> OcrResult:
     """Run the ladder for a TEXT document and return the best text we got."""
     s = get_settings()

@@ -5,6 +5,7 @@ plus the LLM-extracted fields into a list of pass/fail checks. decide() collapse
 those into a suggestedDecision the backend can act on (REJECT on any failure,
 APPROVE on all-pass + high confidence, else NEEDS_REVIEW).
 """
+import re
 from datetime import date, datetime, timedelta
 from typing import List, Optional, Tuple
 
@@ -33,6 +34,11 @@ def _name_match(client_name: Optional[str], doc_name: Optional[str]) -> Optional
         return None
     overlap = len(a & b)
     return overlap >= min(2, len(a))
+
+
+def _norm_id(s: Optional[str]) -> str:
+    """Normalise an ID/passport number for comparison (strip spaces/punctuation)."""
+    return re.sub(r"[^A-Za-z0-9]", "", s or "").upper()
 
 
 def build_text_checks(
@@ -86,6 +92,38 @@ def build_text_checks(
             }
         )
 
+    # Ownership: date of birth (when both the client record and the document
+    # carry one — typically passport / national ID / birth certificate).
+    if expected.clientDob:
+        doc_dob = _parse_date(fields.get("dateOfBirth"))
+        exp_dob = _parse_date(expected.clientDob)
+        if doc_dob and exp_dob:
+            checks.append(
+                {
+                    "code": "DOB_MATCH",
+                    "pass": doc_dob == exp_dob,
+                    "detail": f"client {exp_dob.isoformat()} vs doc {doc_dob.isoformat()}",
+                }
+            )
+
+    # Ownership: passport / national-ID number (strongest belongs-to-client signal).
+    if expected.clientPassportNumber and fields.get("passportNumber"):
+        checks.append(
+            {
+                "code": "PASSPORT_NO_MATCH",
+                "pass": _norm_id(fields["passportNumber"]) == _norm_id(expected.clientPassportNumber),
+                "detail": f"client {expected.clientPassportNumber} vs doc {fields['passportNumber']}",
+            }
+        )
+    if expected.clientNationalId and fields.get("idNumber"):
+        checks.append(
+            {
+                "code": "ID_NO_MATCH",
+                "pass": _norm_id(fields["idNumber"]) == _norm_id(expected.clientNationalId),
+                "detail": f"client {expected.clientNationalId} vs doc {fields['idNumber']}",
+            }
+        )
+
     if expected.docType == "BANK_STATEMENT" or detected == "BANK_STATEMENT":
         sd = _parse_date(fields.get("statementDate") or fields.get("documentDate"))
         if sd:
@@ -109,3 +147,59 @@ def decide(checks: List[dict], confidence: float, high_conf: float) -> Tuple[str
     if checks and confidence >= high_conf:
         return ("APPROVE", reasons, True)
     return ("NEEDS_REVIEW", reasons, False)
+
+
+def build_completeness_checks(
+    detected: Optional[str],
+    expected: ExpectedDoc,
+    completeness: Optional[dict],
+    page_count: int,
+) -> List[dict]:
+    """Turn the LLM completeness assessment + page count into pass/fail checks.
+
+    Completeness is doc-type aware: ID cards need front+back, passports need a
+    complete (uncropped) bio page (MRZ a strong signal), bank statements need
+    the full period / all pages.
+    """
+    checks: List[dict] = []
+    if not completeness:
+        return checks
+    doc_type = expected.docType or detected
+    note = completeness.get("note")
+
+    if doc_type == "NATIONAL_ID":
+        checks.append(
+            {
+                "code": "FRONT_AND_BACK",
+                "pass": bool(completeness.get("hasFrontAndBack")),
+                "detail": note or "Both the front and back of the ID are required",
+            }
+        )
+    elif doc_type == "PASSPORT":
+        ok = bool(completeness.get("mrzPresent")) or bool(completeness.get("appearsComplete"))
+        checks.append(
+            {
+                "code": "PASSPORT_COMPLETE",
+                "pass": ok,
+                "detail": "Bio page complete (MRZ visible)"
+                if ok
+                else "Passport bio page may be cropped or incomplete",
+            }
+        )
+    elif doc_type == "BANK_STATEMENT":
+        checks.append(
+            {
+                "code": "STATEMENT_COMPLETE",
+                "pass": bool(completeness.get("appearsComplete")),
+                "detail": note or f"{page_count} page(s) — must cover the full required period",
+            }
+        )
+    elif completeness.get("appearsComplete") is False:
+        checks.append(
+            {
+                "code": "DOCUMENT_COMPLETE",
+                "pass": False,
+                "detail": note or "Document appears incomplete",
+            }
+        )
+    return checks
