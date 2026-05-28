@@ -1,0 +1,13 @@
+# Tashfeen Immigration Document Parser — pinned for reproducible Railway builds.
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.9.2
+pydantic-settings==2.6.1
+httpx==0.27.2
+openai==1.57.0
+google-cloud-vision==3.8.1
+PyMuPDF==1.24.14
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+Pillow==10.4.0
+redis==5.2.1
