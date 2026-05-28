@@ -18,7 +18,7 @@ from .config import get_settings
 from .schemas import ValidateRequest, ValidateResponse
 from .security import verify_hmac
 
-MODEL_VERSION = "imm-parser-1.1.0"
+MODEL_VERSION = "imm-parser-1.2.0"
 
 app = FastAPI(title="Tashfeen Immigration Document Parser", version=MODEL_VERSION)
 
@@ -107,7 +107,7 @@ async def validate_document(req: ValidateRequest):
     if tier == "needs_vision_fallback":
         is_pdf = "pdf" in (req.file.mimeType or "").lower() or data[:5] == b"%PDF-"
         images = ocr.render_pdf_pages_png(data, s.max_vision_pages) if is_pdf else [data]
-        text, vision_cost = llm.vision_ocr_llm_images(images)
+        text, vision_cost = llm.vision_ocr_llm_images(images, req.openaiApiKey)
         cost += vision_cost
         tier = "gpt4o_mini_vision"
 
@@ -117,7 +117,7 @@ async def validate_document(req: ValidateRequest):
     completeness: dict | None = None
 
     if text:
-        parsed, llm_cost = llm.classify_and_extract(text, req.expected)
+        parsed, llm_cost = llm.classify_and_extract(text, req.expected, req.openaiApiKey)
         cost += llm_cost
         if parsed:
             detected = parsed.get("detectedDocType")

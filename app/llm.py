@@ -6,21 +6,23 @@ NEEDS_REVIEW rather than crashing.
 """
 import base64
 import json
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from .config import get_settings
 from .schemas import ExpectedDoc
 from .vocab import DOC_TYPES, FIELD_KEYS
 
 
-def _client():
-    s = get_settings()
-    if not s.openai_api_key:
+def _client(api_key: Optional[str] = None):
+    """Build an OpenAI client, preferring the per-request key (from the
+    backend's admin key store) over the OPENAI_API_KEY env fallback."""
+    key = api_key or get_settings().openai_api_key
+    if not key:
         return None
     try:
         from openai import OpenAI
 
-        return OpenAI(api_key=s.openai_api_key)
+        return OpenAI(api_key=key)
     except Exception:
         return None
 
@@ -63,8 +65,10 @@ def _strict_schema() -> dict:
     }
 
 
-def classify_and_extract(text: str, expected: ExpectedDoc) -> Tuple[dict, float]:
-    client = _client()
+def classify_and_extract(
+    text: str, expected: ExpectedDoc, api_key: Optional[str] = None
+) -> Tuple[dict, float]:
+    client = _client(api_key)
     if client is None:
         return ({}, 0.0)
     s = get_settings()
@@ -113,9 +117,11 @@ def classify_and_extract(text: str, expected: ExpectedDoc) -> Tuple[dict, float]
         return ({}, 0.0)
 
 
-def vision_ocr_llm_images(images: List[bytes]) -> Tuple[str, float]:
+def vision_ocr_llm_images(
+    images: List[bytes], api_key: Optional[str] = None
+) -> Tuple[str, float]:
     """Last-resort OCR: ask gpt-4o-mini vision to transcribe page images."""
-    client = _client()
+    client = _client(api_key)
     if client is None or not images:
         return ("", 0.0)
     s = get_settings()

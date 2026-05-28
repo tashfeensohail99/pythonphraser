@@ -40,6 +40,9 @@ class ValidateRequest(BaseModel):
     versionId: str
     expected: ExpectedDoc
     file: FilePayload
+    # Per-request OpenAI key from the backend's admin-managed key store
+    # (single source of truth). Falls back to OPENAI_API_KEY env if absent.
+    openaiApiKey: Optional[str] = None
 
 
 class ValidateResponse(BaseModel):
