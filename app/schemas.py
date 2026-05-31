@@ -57,3 +57,33 @@ class ValidateResponse(BaseModel):
     cacheHit: bool = False
     modelVersion: str = ""
     errorMessage: Optional[str] = None
+
+
+# ── Split & categorize (multi-document upload) ──────────────────────────────
+
+
+class SplitRequest(BaseModel):
+    file: FilePayload
+    # Optional context hints (used by the backend; the parser ignores them for
+    # now but they're part of the contract for program-aware classification).
+    caseId: Optional[str] = None
+    expectedProgram: Optional[str] = None
+    expectedDocTypes: Optional[List[str]] = None
+
+
+class SplitDocument(BaseModel):
+    doc_type: str
+    pages: List[int]
+    confidence: float = 0.0
+    needs_review: bool = True
+    ocrTier: str = "google_vision"
+
+
+class SplitResponse(BaseModel):
+    documents: List[SplitDocument] = []
+    pageCount: int = 0
+    truncated: bool = False
+    costCents: float = 0.0
+    engineUsed: str = "none"
+    modelVersion: str = ""
+    errorMessage: Optional[str] = None

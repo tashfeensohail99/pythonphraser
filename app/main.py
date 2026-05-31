@@ -12,10 +12,15 @@ import base64
 import httpx
 from fastapi import Depends, FastAPI, HTTPException
 
-from . import llm, ocr, photo, validators
+from . import llm, ocr, photo, split, validators
 from .cache import content_hash, get_cache
 from .config import get_settings
-from .schemas import ValidateRequest, ValidateResponse
+from .schemas import (
+    SplitRequest,
+    SplitResponse,
+    ValidateRequest,
+    ValidateResponse,
+)
 from .security import verify_hmac
 
 MODEL_VERSION = "imm-parser-1.2.0"
@@ -156,3 +161,33 @@ async def validate_document(req: ValidateRequest):
     ).model_dump()
     cache.set(key, resp)
     return resp
+
+
+@app.post(
+    "/split-and-categorize",
+    response_model=SplitResponse,
+    dependencies=[Depends(verify_hmac)],
+)
+async def split_and_categorize(req: SplitRequest):
+    """Split a (possibly multi-document) upload into categorized documents.
+
+    OCR-first (native PDF text / Google Vision) + deterministic classification
+    over the canonical DOC_TYPES vocab. High-confidence segments are trusted;
+    low-confidence ones come back needs_review=True for the associate's
+    Split Reviewer. No OpenAI vision in this path.
+    """
+    s = get_settings()
+    data = await _load_file(req.file)
+    if len(data) > s.max_file_mb * 1024 * 1024:
+        raise HTTPException(413, f"File exceeds {s.max_file_mb} MB limit")
+
+    result = split.run_split(data, req.file.mimeType)
+    return SplitResponse(
+        documents=result.get("documents", []),
+        pageCount=result.get("pageCount", 0),
+        truncated=result.get("truncated", False),
+        costCents=result.get("costCents", 0.0),
+        engineUsed=result.get("engineUsed", "none"),
+        modelVersion=MODEL_VERSION,
+        errorMessage=result.get("error"),
+    )
