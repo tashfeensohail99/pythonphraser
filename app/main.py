@@ -40,6 +40,51 @@ def health():
     }
 
 
+@app.get("/health/vision")
+def health_vision():
+    """Active end-to-end Google Vision check.
+
+    /health only reports whether the credential VAR is set; the OCR path then
+    swallows any Vision error (returns None), so a bad key / disabled API / no
+    billing looks identical to "no text". This endpoint runs a REAL
+    document_text_detection on a generated text image and surfaces the true
+    verdict + the exact error, so "is OCR actually working?" has a real answer.
+    """
+    s = get_settings()
+    if not s.vision_configured():
+        return {
+            "configured": False, "clientInit": False, "ok": False,
+            "error": "GOOGLE_VISION_CREDENTIALS_JSON / GOOGLE_APPLICATION_CREDENTIALS not set",
+        }
+    client = ocr._vision_client()
+    if client is None:
+        return {
+            "configured": True, "clientInit": False, "ok": False,
+            "error": "client init failed — credentials JSON invalid or unparseable",
+        }
+    try:
+        import io
+
+        from google.cloud import vision
+        from PIL import Image, ImageDraw
+
+        # Generate a high-contrast text image (upscaled so the built-in bitmap
+        # font is large enough for Vision to read reliably).
+        base = Image.new("RGB", (260, 50), "white")
+        ImageDraw.Draw(base).text((8, 16), "TASHFEEN VISION OK 2468", fill="black")
+        img = base.resize((1040, 200), Image.Resampling.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+
+        resp = client.document_text_detection(image=vision.Image(content=buf.getvalue()))
+        if resp.error.message:
+            return {"configured": True, "clientInit": True, "ok": False, "error": resp.error.message}
+        text = (resp.full_text_annotation.text or "").strip()
+        return {"configured": True, "clientInit": True, "ok": True, "sampleText": text[:120]}
+    except Exception as e:  # PermissionDenied / API-not-enabled / billing / etc.
+        return {"configured": True, "clientInit": True, "ok": False, "error": f"{type(e).__name__}: {e}"}
+
+
 async def _load_file(f) -> bytes:
     s = get_settings()
     if f.contentBase64:
