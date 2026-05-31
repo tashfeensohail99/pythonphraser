@@ -77,6 +77,10 @@ class SplitDocument(BaseModel):
     confidence: float = 0.0
     needs_review: bool = True
     ocrTier: str = "google_vision"
+    # This segment extracted into its own standalone file (base64). The backend
+    # stores this as the document version. "" if extraction failed -> triage.
+    fileBase64: str = ""
+    mimeType: str = "application/pdf"
 
 
 class SplitResponse(BaseModel):

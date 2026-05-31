@@ -16,6 +16,7 @@ their checklist slots and sends needs_review ones to the associate's reviewer.
 """
 from __future__ import annotations
 
+import base64
 import re
 from typing import Any, Dict, List, Tuple
 
@@ -178,6 +179,27 @@ def _page_text(page, data: bytes) -> Tuple[str, str, float]:
     return native, "native_pdf", 0.0
 
 
+def _extract_subpdf(data: bytes, pages: List[int]) -> str:
+    """Build a new PDF from the given source page indices and return it base64.
+
+    This is what lets the backend FILE a split segment: each detected document
+    becomes its own standalone PDF (a 6-page bank statement -> one 6-page PDF).
+    Returns "" on failure, in which case the backend falls back to the whole
+    bundle / a human review row rather than filing a wrong slice.
+    """
+    try:
+        src = fitz.open(stream=data, filetype="pdf")
+        dst = fitz.open()
+        for p in pages:
+            dst.insert_pdf(src, from_page=p, to_page=p)
+        out = dst.tobytes(deflate=True, garbage=3)
+        src.close()
+        dst.close()
+        return base64.b64encode(out).decode("ascii")
+    except Exception:
+        return ""
+
+
 def run_split(data: bytes, mime: str) -> Dict[str, Any]:
     """Split a (possibly multi-document) upload into categorized documents.
 
@@ -196,6 +218,9 @@ def run_split(data: bytes, mime: str) -> Dict[str, Any]:
             "documents": [{
                 "doc_type": dtype, "pages": [0], "confidence": conf,
                 "needs_review": conf < CONFIDENCE_GATE, "ocrTier": "google_vision",
+                # An image is already a single file — hand it back as-is.
+                "fileBase64": base64.b64encode(data).decode("ascii"),
+                "mimeType": mime or "image/jpeg",
             }],
             "pageCount": 1, "truncated": False,
             "costCents": round(cost, 4), "engineUsed": "google_vision",
@@ -232,6 +257,10 @@ def run_split(data: bytes, mime: str) -> Dict[str, Any]:
     for d in documents:
         d["needs_review"] = d["confidence"] < CONFIDENCE_GATE
         d["ocrTier"] = "google_vision"
+        # Extract this segment's pages into its own PDF so the backend can file
+        # it directly. If extraction fails, leave it empty -> backend triages.
+        d["fileBase64"] = _extract_subpdf(data, d["pages"])
+        d["mimeType"] = "application/pdf"
 
     return {
         "documents": documents,
