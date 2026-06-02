@@ -56,6 +56,10 @@ class ValidateResponse(BaseModel):
     costCents: float = 0.0
     cacheHit: bool = False
     modelVersion: str = ""
+    # P4c-2: attestation authorities whose stamp keywords were found in the OCR
+    # text (e.g. ["MOFA", "HEC"]). Suggestion only — surfaced as a hint next to
+    # the manual "Mark attested" control; never auto-marks attestation.
+    detectedAuthorities: List[str] = []
     errorMessage: Optional[str] = None
 
 

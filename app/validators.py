@@ -203,3 +203,35 @@ def build_completeness_checks(
             }
         )
     return checks
+
+
+# ── Attestation-authority detection (P4c-2) ─────────────────────────────────
+# Scan OCR text for attestation / legalisation authority stamps. This is a
+# SUGGESTION only — the backend surfaces it as a hint next to the associate's
+# manual "Mark attested" control. It never changes the suggestedDecision and
+# never auto-marks attestation (educate-and-nudge: AI suggests, human confirms).
+#
+# Acronyms use word boundaries so "HEC" doesn't fire inside "check"; full
+# names are plain case-insensitive substrings. The list is intentionally easy
+# to extend as more authorities come up.
+_AUTHORITY_PATTERNS: List[Tuple[str, List[str]]] = [
+    ("MOFA", [r"\bMOFA\b", r"ministry of foreign affairs"]),
+    ("HEC", [r"\bHEC\b", r"higher education commission"]),
+    ("IBCC", [r"\bIBCC\b", r"inter[\s-]?board committee"]),
+    ("APOSTILLE", [r"\bapostille\b"]),
+    ("EMBASSY", [r"\bembassy\b", r"\bconsulate\b", r"consular section"]),
+    ("NOTARY", [r"\bnotary\b", r"notary public", r"notarial"]),
+]
+
+
+def detect_authorities(text: Optional[str]) -> List[str]:
+    """Return the distinct attestation authorities whose stamp keywords appear
+    in the OCR text (e.g. ["MOFA", "HEC"]). Best-effort, suggestion-only —
+    order follows _AUTHORITY_PATTERNS."""
+    if not text:
+        return []
+    found: List[str] = []
+    for code, patterns in _AUTHORITY_PATTERNS:
+        if any(re.search(pat, text, re.IGNORECASE) for pat in patterns):
+            found.append(code)
+    return found
