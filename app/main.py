@@ -23,7 +23,7 @@ from .schemas import (
 )
 from .security import verify_hmac
 
-MODEL_VERSION = "imm-parser-1.3.0"
+MODEL_VERSION = "imm-parser-1.4.0"
 
 app = FastAPI(title="Tashfeen Immigration Document Parser", version=MODEL_VERSION)
 
@@ -204,6 +204,8 @@ async def validate_document(req: ValidateRequest):
         modelVersion=MODEL_VERSION,
         # P4c-2: attestation-stamp hint from the OCR text (suggestion only).
         detectedAuthorities=validators.detect_authorities(text),
+        # P4f: non-Latin script hint — suggests certified translation needed.
+        detectedLanguage=validators.detect_language_hint(text),
         errorMessage=error,
     ).model_dump()
     cache.set(key, resp)

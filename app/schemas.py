@@ -60,6 +60,11 @@ class ValidateResponse(BaseModel):
     # text (e.g. ["MOFA", "HEC"]). Suggestion only — surfaced as a hint next to
     # the manual "Mark attested" control; never auto-marks attestation.
     detectedAuthorities: List[str] = []
+    # P4f: dominant non-Latin script detected in OCR text
+    # (e.g. "Arabic/Urdu", "Chinese/Japanese/Korean"). None = primarily Latin.
+    # Suggestion only — shown as an amber "translation needed" hint on the
+    # checklist. Never auto-sets translationStatus.
+    detectedLanguage: Optional[str] = None
     errorMessage: Optional[str] = None
 
 

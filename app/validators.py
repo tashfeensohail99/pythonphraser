@@ -205,6 +205,62 @@ def build_completeness_checks(
     return checks
 
 
+# ── Language / translation-needed detection (P4f) ───────────────────────────
+# Scan OCR text for non-Latin Unicode scripts. When a significant proportion
+# of letter characters belong to a non-Latin script (e.g. Urdu, Chinese) the
+# document is likely not in English or French and will need certified
+# translation for Canadian/international submission.
+#
+# This is a SUGGESTION only — surfaced as an amber "translation needed" hint
+# next to the document item. It never changes suggestedDecision or auto-sets
+# translationStatus (educate-and-nudge: AI suggests, human confirms).
+
+_SCRIPT_RANGES: List[Tuple[str, List[Tuple[int, int]]]] = [
+    ("Arabic/Urdu", [(0x0600, 0x06FF), (0x0750, 0x077F), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]),
+    ("Chinese/Japanese/Korean", [(0x4E00, 0x9FFF), (0x3040, 0x30FF), (0xAC00, 0xD7AF)]),
+    ("Cyrillic", [(0x0400, 0x04FF)]),
+    ("Devanagari", [(0x0900, 0x097F)]),
+    ("Bengali", [(0x0980, 0x09FF)]),
+    ("Tamil", [(0x0B80, 0x0BFF)]),
+    ("Thai", [(0x0E00, 0x0E7F)]),
+    ("Hebrew", [(0x0590, 0x05FF)]),
+]
+# Minimum proportion of non-Latin letter-characters to trigger the hint.
+_TRANSLATION_THRESHOLD = 0.25
+
+
+def detect_language_hint(text: Optional[str]) -> Optional[str]:
+    """Return a script/language hint (e.g. "Arabic/Urdu") if the document OCR
+    text appears to be primarily non-English/French and likely needs certified
+    translation. Returns None when text is predominantly Latin script.
+
+    Best-effort, suggestion-only. Order follows _SCRIPT_RANGES."""
+    if not text:
+        return None
+    # Consider only alphabetic characters (ignore digits, spaces, punctuation).
+    letters = [c for c in text if c.isalpha()]
+    if len(letters) < 20:
+        return None  # too little text to judge reliably
+    total = len(letters)
+
+    counts: dict = {}
+    for script, ranges in _SCRIPT_RANGES:
+        count = sum(
+            1 for c in letters
+            if any(lo <= ord(c) <= hi for lo, hi in ranges)
+        )
+        if count > 0:
+            counts[script] = count
+
+    if not counts:
+        return None  # all Latin
+
+    dominant = max(counts, key=counts.__getitem__)  # type: ignore[arg-type]
+    if counts[dominant] / total >= _TRANSLATION_THRESHOLD:
+        return dominant
+    return None
+
+
 # ── Attestation-authority detection (P4c-2) ─────────────────────────────────
 # Scan OCR text for attestation / legalisation authority stamps. This is a
 # SUGGESTION only — the backend surfaces it as a hint next to the associate's
