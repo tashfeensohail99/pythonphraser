@@ -72,12 +72,22 @@ def classify_and_extract(
     if client is None:
         return ({}, 0.0)
     s = get_settings()
+    # Give the classifier the definition of every allowed type, not just the bare
+    # enum names — otherwise documents it hasn't seen by name (e.g. a NADRA Family
+    # Registration Certificate) get guessed into the closest-sounding type
+    # ("National ID"). Definitions come straight from the vocab.
+    catalog = "\n".join(f"- {name}: {spec['desc']}" for name, spec in DOC_TYPES.items())
     system = (
         "You are an immigration document analyst. Classify the document into one "
         "of the allowed types and extract the requested fields. Use ISO-8601 "
         "(YYYY-MM-DD) for every date. Return null for any field you cannot find. "
         "Be conservative: only give high confidence when the document is "
         "unambiguous.\n"
+        "Choose the single best-matching type from this list; use OTHER only when "
+        "none genuinely fit. Do NOT force a family/civil document (e.g. a Family "
+        "Registration Certificate, marriage, birth, divorce or death certificate) "
+        "into NATIONAL_ID just because it cites CNIC/ID numbers.\n"
+        f"Allowed document types:\n{catalog}\n\n"
         "Always extract fullName, dateOfBirth, passportNumber and idNumber when "
         "shown — they confirm the document belongs to the right person.\n"
         "Also assess completeness:\n"

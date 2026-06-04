@@ -87,6 +87,19 @@ _RULES: Dict[str, List[Tuple[str, int]]] = {
         ("birth certificate", 5), ("certificate of birth", 5), ("date of birth", 1),
         ("registrar of births", 4),
     ],
+    "FAMILY_REGISTRATION_CERTIFICATE": [
+        ("family registration certificate", 6), ("family registration", 4),
+        ("family tree certificate", 5), ("head of family", 3), ("family members", 2),
+        ("nadra", 1),
+    ],
+    "DIVORCE_CERTIFICATE": [
+        ("divorce certificate", 6), ("divorce deed", 5), ("decree of divorce", 5),
+        ("talaq", 4), ("khula", 4), ("dissolution of marriage", 4),
+    ],
+    "DEATH_CERTIFICATE": [
+        ("death certificate", 6), ("certificate of death", 6), ("date of death", 3),
+        ("deceased", 2), ("registrar of deaths", 4),
+    ],
     "EMPLOYMENT_LETTER": [
         ("experience certificate", 5), ("to whom it may concern", 3), ("this is to certify", 2),
         ("employment certificate", 5), ("appointment letter", 4), ("offer letter", 3),
@@ -140,6 +153,21 @@ def _classify(text: str) -> Tuple[str, float]:
                                   "given name", "surname", "country code") if k in lower)
     cnic_kw = sum(1 for k in ("national identity card", "cnic", "identity number",
                               "registrar general of pakistan") if k in lower)
+
+    # Family / civil-registry documents frequently cite family members' CNIC
+    # numbers, so detect them by their distinctive titles BEFORE the CNIC signal
+    # below — otherwise an FRC / nikah nama / death certificate etc. is
+    # mislabelled as a single national ID card.
+    if "family registration certificate" in lower or ("family registration" in lower and "nadra" in lower):
+        return "FAMILY_REGISTRATION_CERTIFICATE", 0.92
+    if "death certificate" in lower or "certificate of death" in lower:
+        return "DEATH_CERTIFICATE", 0.9
+    if "divorce certificate" in lower or "divorce deed" in lower or "decree of divorce" in lower or "khula" in lower:
+        return "DIVORCE_CERTIFICATE", 0.9
+    if "marriage certificate" in lower or "nikah nama" in lower or "nikahnama" in lower or "certificate of marriage" in lower:
+        return "MARRIAGE_CERTIFICATE", 0.92
+    if "birth certificate" in lower or "certificate of birth" in lower:
+        return "BIRTH_CERTIFICATE", 0.92
 
     if cnic_kw >= 1 and (has_cnic or "national identity card" in lower) and not has_mrz:
         return "NATIONAL_ID", 0.95

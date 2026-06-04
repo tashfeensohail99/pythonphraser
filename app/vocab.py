@@ -60,6 +60,23 @@ DOC_TYPES: dict[str, dict] = {
         "desc": "Birth certificate",
         "fields": ["fullName", "dateOfBirth", "issuingAuthority"],
     },
+    "FAMILY_REGISTRATION_CERTIFICATE": {
+        "desc": (
+            "NADRA Family Registration Certificate (FRC) / family registration / "
+            "family-tree certificate that lists the members of a family and their "
+            "relationships. Often cites several CNIC numbers — it is NOT a single "
+            "national ID card."
+        ),
+        "fields": ["fullName", "issuingAuthority", "documentDate", "summary"],
+    },
+    "DIVORCE_CERTIFICATE": {
+        "desc": "Divorce certificate / decree / deed (e.g. talaq, khula)",
+        "fields": ["fullName", "issuingAuthority", "documentDate"],
+    },
+    "DEATH_CERTIFICATE": {
+        "desc": "Death certificate",
+        "fields": ["fullName", "issuingAuthority", "documentDate"],
+    },
     "EMPLOYMENT_LETTER": {
         "desc": "Employment / offer / experience letter",
         "fields": ["fullName", "employerName", "jobTitle", "documentDate"],
